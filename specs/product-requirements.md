@@ -1,184 +1,212 @@
-# Product Requirements
+# Product Requirements Document
 
-## Product Goal
+## Document Control
 
-V1 is a balance-sheet snapshot dashboard for personal/family finance. It helps a single admin user record point-in-time asset and liability snapshots for multiple owners, then review owner-level and household-level net worth trends over time.
+- Product: My CFO
+- Scope: V1 personal/family balance-sheet snapshot dashboard
+- Purpose: define traceable product requirements for design, data model, implementation, and tests.
+- Requirement IDs: use `PRD-x.y` for stable cross-references.
 
-V1 is not a bookkeeping, budgeting, cash-flow, or investment holding analysis system.
+## PRD-1 Product Scope
 
-## Users
+### PRD-1.1 Product Objective
 
-- Primary user: one admin user who can view and manage all data.
-- Financial owners: people such as `猫猫` and `龙龙`. Owners are financial dimensions, not login identities.
+The product shall help one admin user record point-in-time assets and liabilities for multiple financial owners, combine selected owner snapshots into finalized household snapshots, and review household and owner-level net worth trends.
 
-## Core Workflow
+### PRD-1.2 Primary User
 
-1. Configure active owners.
-2. Configure balance sheet item templates for each owner.
-3. Create owner snapshots independently at any date.
-4. Generate draft snapshot items from active templates.
-5. Fill every amount; use `0` for checked zero balances.
-6. Confirm owner snapshots.
-7. Create a household snapshot group by selecting exactly one confirmed snapshot for every active owner.
-8. Finalize the household snapshot group.
-9. Review household and owner dashboards based on finalized data.
+The product shall support one admin login identity with access to all configuration, import/export, snapshot finalization, and dashboard functions.
 
-## Scope
+### PRD-1.3 Financial Owners
 
-### In Scope
+The product shall support multiple financial owners, such as `猫猫` and `龙龙`, as ownership dimensions rather than login identities.
 
-- Owner management.
-- Balance sheet item templates.
-- Owner snapshots and snapshot items.
-- Household snapshot groups.
-- Household overview dashboard as the default homepage.
-- Owner-level dashboard views.
-- Snapshot-based time series charts.
-- Multi-currency amounts with automatic FX rates and manual fallback.
-- CSV template export and import based on app-defined templates.
-- Single-user password login.
-- SQLite storage.
-- Lightweight revision history for finalized household groups.
-- Notes and tags on templates and snapshot items.
+### PRD-1.4 V1 Non-Goals
 
-### Out of Scope
+V1 shall not include transaction ledgers, cash-flow statements, budgeting, expense categorization, holding-level investment analysis, automatic bank/brokerage sync, multi-user permissions, full audit logging, CI/CD pipeline design, or legacy spreadsheet parsing.
 
-- Transaction ledger.
-- Cash-flow statement.
-- Recurring commitments or fixed expense scheduling.
-- Budgeting.
-- Expense categorization.
-- Holding-level investment breakdown.
-- Automatic bank, payment app, or brokerage sync.
-- Legacy spreadsheet parser.
-- Owner-level login or permissions.
-- Full audit log.
-- CI/CD or deployment pipeline details.
+## PRD-2 Core Workflow
 
-## Data Model Requirements
+### PRD-2.1 Master Data Setup
 
-### Owners
+The admin shall configure owners, controlled system categories, managed tags, and balance-sheet item templates before creating snapshots.
 
-Owners are active financial subjects. A household snapshot group can be finalized only when every active owner has exactly one confirmed owner snapshot included.
+### PRD-2.2 Owner Snapshot Creation
 
-### Balance Sheet Item Templates
+The admin shall create draft owner snapshots from active templates and fill generated snapshot item amounts.
 
-Templates define the recurring rows expected in each owner snapshot:
+### PRD-2.3 Owner Snapshot Confirmation
 
-- owner
-- item type: asset or liability
-- system category
-- user category
-- account name
-- institution
-- currency
-- display order
-- active status
-- optional notes and tags
+The product shall prevent owner snapshot confirmation while any generated item has an empty amount. A value of `0` shall mean the balance was checked and confirmed as zero.
 
-Templates are reused for future snapshots. Later template edits must not rewrite historical snapshot items.
+### PRD-2.4 Household Group Creation
 
-### Snapshot Items
+The admin shall create a household snapshot group by explicitly selecting one confirmed owner snapshot for every owner active at finalization time.
 
-Snapshot items are generated from active templates. Draft items may be edited before confirmation. Confirmed owner snapshots cannot contain empty amounts.
+### PRD-2.5 Household Group Finalization
 
-Amount semantics:
+The product shall finalize household groups by freezing selected owner snapshots and the FX rate set used for official base-currency totals.
 
-- `0` means checked and confirmed as zero.
-- Empty/null amount is allowed only while a snapshot is draft.
-- Inactive templates are excluded from future snapshot generation but remain available in history.
+### PRD-2.6 Dashboard Review
 
-### Snapshot Dates
+The product shall render household and owner dashboards from finalized household group revisions only for official values.
 
-Snapshots are point-in-time records. They may be created daily, weekly, monthly, or ad hoc. Monthly views are derived from snapshot dates and are not required by the data model.
+## PRD-3 Data and Snapshot Requirements
 
-### Household Snapshot Groups
+### PRD-3.1 Owner Lifecycle
 
-A household snapshot group is a user-confirmed aggregation of one confirmed snapshot per active owner. Household dashboard totals and trends use finalized household snapshot groups only.
+The admin shall be able to create, rename, activate, deactivate, and recover owners. Historical snapshots and finalized groups shall retain their original owner references.
 
-Finalized groups support lightweight revision history:
+### PRD-3.2 Template Semantics
 
-- Reopening a finalized group requires confirmation.
-- Reopening creates an editable draft revision.
-- The previous finalized revision remains active until a new revision is finalized.
-- Saving edited draft data requires confirmation.
-- Cancelling a draft revision leaves the previous finalized revision unchanged.
+A balance-sheet item template shall represent one recurring reporting line, not a full account, sub-account, or investment holding model.
 
-## Classification Requirements
+### PRD-3.3 Template Fields
 
-Snapshot items use a two-level classification model:
+Templates shall include owner, item type, controlled system category, account name, institution name, currency, display order, active status, notes, and tags.
 
-- System category: stable calculation category used for totals and charts.
-- User category: user-defined display/grouping category.
+### PRD-3.4 Template Change Scope
 
-Calculation depends on item type, system category, currency, and amount. Display can use user category, account name, institution, notes, and tags.
+Template edits shall affect future generated snapshot items only. Existing snapshot items shall preserve copied historical fields.
 
-## Currency Requirements
+### PRD-3.5 Template Active State
 
-Base currency defaults to CNY. Snapshot items store original currency and original amount.
+Inactive templates shall stop generating future snapshot items but remain available for historical records and recovery.
 
-The system should fetch exchange rates automatically. If the FX source is unavailable, users can manually enter or override rates. Finalized household groups must freeze the FX rates used for base-currency calculations so historical totals do not drift.
+### PRD-3.6 Owner Snapshot Timestamp
 
-## CSV Requirements
+Owner snapshots shall use a canonical `reporting_at` timestamp. Day, month, quarter, and year views shall be derived from that timestamp.
 
-V1 supports manual web entry as the primary input method and CSV as a secondary workflow.
+### PRD-3.7 Confirmed Snapshot Immutability
 
-CSV template export:
+Confirmed owner snapshots shall not be edited in place.
 
-- Export rows from active balance sheet item templates.
-- Include owner, item type, system category, user category, account name, institution, and currency.
-- Include blank amount and optional note fields for user input.
+### PRD-3.8 Replacement Snapshot Corrections
 
-CSV import:
+Corrections to confirmed owner snapshots shall create replacement snapshots. Confirming a replacement shall mark the previous snapshot as superseded and link both records.
 
-- Accept only the app-defined template schema.
-- Reject unknown owners, invalid categories, invalid currencies, and malformed amounts.
-- Preview parsed rows before saving.
-- Create draft owner snapshots, not finalized household groups.
+### PRD-3.9 Household Group Timestamp
 
-## Dashboard Requirements
+Household snapshot group `reporting_at` shall be generated automatically when the group is created and shall not be manually selected in V1.
 
-The default homepage is Household Overview. It must display only active finalized household snapshot groups.
+### PRD-3.10 Household Group Derivation
 
-Required dashboard content:
+Household group revisions shall be derived from selected owner snapshots and shall not directly own or edit financial amounts.
 
-- Current household net worth.
-- Total assets.
-- Total liabilities.
-- Household net worth trend.
-- Total assets vs total liabilities trend.
-- Owner net worth trend.
-- Asset composition by system category.
-- Currency exposure.
-- Owner contribution breakdown.
-- Latest finalized group details.
+### PRD-3.11 Household Group Revision
 
-Optional V1 dashboard content:
+Reopening a finalized household group shall create a draft revision. The previous finalized revision shall remain active until a new revision is finalized.
 
-- Asset category trend.
-- Currency exposure trend.
-- Net worth delta between adjacent finalized groups.
+## PRD-4 Classification and Labeling
 
-Net worth delta may be shown, but it must be labeled as net worth change, not cash flow.
+### PRD-4.1 Controlled System Categories
 
-## Authentication & Storage Requirements
+System categories shall be controlled, user-configurable dashboard categories with item-type compatibility.
 
-V1 uses single-user password login. One configured admin password protects dashboard and data-management pages. Owner records are financial dimensions, not login identities.
+### PRD-4.2 Managed Tags
 
-Secrets must come from environment variables and must not be committed. SQLite is the V1 source of truth. Spreadsheet and CSV files are import/export formats only.
+Tags shall be managed entities used for filtering, drilldown, and auxiliary labeling.
 
-## Acceptance Criteria
+### PRD-4.3 No User Category Field
 
-- Admin can configure active owners.
-- Admin can configure active balance sheet item templates per owner.
-- Admin can create draft owner snapshots from active templates.
-- Admin cannot confirm an owner snapshot while any active template item has an empty amount.
-- Admin can confirm owner snapshots with valid numeric amounts, including `0`.
-- Admin can create and finalize a household snapshot group only when every active owner has exactly one confirmed snapshot selected.
-- Household dashboard shows finalized groups only.
-- Dashboard displays net worth, assets, liabilities, owner contribution, category composition, currency exposure, and required time series.
-- System supports original-currency amounts and frozen FX rates for finalized household groups.
-- Admin can export a CSV template from active templates.
-- Admin can import the app-defined CSV format into draft owner snapshots after preview.
-- Reopening a finalized group creates a draft revision and does not modify active dashboard totals until re-finalized.
-- V1 does not require transaction import, expense categories, cash-flow analysis, holding-level investments, or bank/brokerage sync.
+V1 shall not use a separate `user_category` field. The product shall use controlled system categories and managed tags instead.
+
+### PRD-4.4 Institution Label
+
+Institution shall be a normalized text label with autocomplete from existing values, not an independent V1 entity.
+
+## PRD-5 Currency and Valuation
+
+### PRD-5.1 Original Currency Storage
+
+Snapshot items shall store original amount and original currency.
+
+### PRD-5.2 Non-Negative Amounts
+
+Snapshot item amounts shall be non-negative. Item type shall determine whether a value contributes to assets or liabilities.
+
+### PRD-5.3 Official Base Currency
+
+V1 shall use one global official base currency, defaulting to CNY.
+
+### PRD-5.4 Frozen FX Rates
+
+Finalized household group revisions shall freeze the FX rate set used for official base-currency totals.
+
+### PRD-5.5 FX Source and Fallback
+
+The product shall fetch FX rates from an API when available and support manual fallback when the API is unavailable or insufficient.
+
+### PRD-5.6 Display Currency Estimates
+
+Dashboard display-currency conversions shall be presentation-only estimates when they differ from frozen official base-currency values and shall not mutate historical records.
+
+### PRD-5.7 Decimal Precision
+
+Amounts and FX rates shall be stored without floating-point precision loss and shall support up to 8 decimal places.
+
+## PRD-6 CSV Import and Export
+
+### PRD-6.1 CSV Role
+
+CSV shall be a secondary workflow. Manual web entry shall remain the primary workflow.
+
+### PRD-6.2 CSV Export
+
+CSV exports shall be generated from active templates.
+
+### PRD-6.3 Strict CSV Import
+
+CSV imports shall strictly follow the app-defined exported template schema.
+
+### PRD-6.4 CSV Validation
+
+CSV import shall reject unknown owners, unknown templates, unknown system categories, unknown tags, invalid currencies, malformed amounts, and negative amounts.
+
+### PRD-6.5 CSV Import Output
+
+CSV import shall create draft owner snapshots only and shall never create finalized household groups or master data.
+
+## PRD-7 Dashboard Requirements
+
+### PRD-7.1 Default Dashboard
+
+The default homepage shall be Household Overview and shall use finalized household group revisions only.
+
+### PRD-7.2 Required Summary Metrics
+
+The dashboard shall show current household net worth, total assets, and total liabilities.
+
+### PRD-7.3 Required Trend Charts
+
+The dashboard shall show household net worth trend, total assets versus liabilities trend, and owner net worth trend.
+
+### PRD-7.4 Required Composition Views
+
+The dashboard shall show asset and liability composition by system category, currency exposure, and owner contribution breakdown.
+
+### PRD-7.5 Latest Group Detail
+
+The dashboard shall show latest finalized group details, including selected owner snapshot timestamps.
+
+### PRD-7.6 Optional V1 Views
+
+V1 may include system category trends, currency exposure trends, tag filters, tag drilldowns, and adjacent net worth delta. Net worth delta shall be labeled as net worth change, not cash flow.
+
+## PRD-8 Security and Storage
+
+### PRD-8.1 Authentication
+
+V1 shall use single-user password login.
+
+### PRD-8.2 Secret Handling
+
+Passwords, tokens, secrets, connection strings, and private keys shall come from environment variables and shall not be committed.
+
+### PRD-8.3 Source of Truth
+
+SQLite shall be the V1 source of truth. Spreadsheet and CSV files shall be import/export formats only.
+
+### PRD-8.4 Soft Delete and Recovery
+
+Referenced records shall not be hard-deleted. The product shall use active flags or status fields to support deactivation, cancellation, supersession, and recovery.
