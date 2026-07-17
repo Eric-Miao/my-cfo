@@ -24,14 +24,8 @@ async def test_openapi_schema_includes_api_v1_meta(async_client) -> None:
 
 
 @pytest.mark.anyio
-async def test_api_meta_returns_runtime_contract(async_client) -> None:
+async def test_api_meta_requires_authentication(async_client) -> None:
     response = await async_client.get("/api/v1/meta")
 
-    assert response.status_code == 200
-    assert response.json() == {
-        "app_name": "my-cfo",
-        "environment": "development",
-        "api_version": "v1",
-        "official_base_currency": "CNY",
-        "fx_provider": "frankfurter",
-    }
+    assert response.status_code == 401
+    assert response.json()["error"]["code"] == "unauthenticated"

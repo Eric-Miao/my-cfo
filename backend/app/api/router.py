@@ -1,11 +1,14 @@
-from fastapi import APIRouter
+from fastapi import APIRouter, Depends
 
+from backend.app.api.deps import require_admin
+from backend.app.api.routes import auth, owners
 from backend.app.core.config import settings
 
 router = APIRouter(prefix="/api/v1")
+protected_router = APIRouter(dependencies=[Depends(require_admin)])
 
 
-@router.get("/meta", tags=["system"])
+@protected_router.get("/meta", tags=["system"])
 def meta() -> dict[str, str]:
     return {
         "app_name": settings.app_name,
@@ -14,3 +17,8 @@ def meta() -> dict[str, str]:
         "official_base_currency": settings.official_base_currency,
         "fx_provider": settings.fx_provider,
     }
+
+
+protected_router.include_router(owners.router)
+router.include_router(auth.router)
+router.include_router(protected_router)
