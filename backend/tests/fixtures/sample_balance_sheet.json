@@ -1,0 +1,37 @@
+{
+  "owners": ["Owner A", "Owner B"],
+  "reporting_at": "2026-03-05T15:59:59Z",
+  "categories": [
+    {"code": "cash", "item_type": "asset"},
+    {"code": "marketable_assets", "item_type": "asset"},
+    {"code": "credit_card", "item_type": "liability"}
+  ],
+  "currencies": ["CNY", "USD"],
+  "templates": [
+    {
+      "account_name": "WeChat Wallet",
+      "institution_name": "WeChat",
+      "currency": "CNY"
+    },
+    {
+      "account_name": "Alipay Balance",
+      "institution_name": "Alipay",
+      "currency": "CNY"
+    },
+    {
+      "account_name": "Bank Deposit",
+      "institution_name": "Sample Bank",
+      "currency": "CNY"
+    },
+    {
+      "account_name": "Fidelity Brokerage",
+      "institution_name": "Fidelity",
+      "currency": "USD"
+    },
+    {
+      "account_name": "Credit Card",
+      "institution_name": "Sample Card",
+      "currency": "USD"
+    }
+  ]
+}

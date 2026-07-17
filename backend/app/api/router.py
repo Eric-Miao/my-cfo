@@ -4,6 +4,7 @@ from backend.app.api.deps import require_admin
 from backend.app.api.routes import (
     auth,
     categories,
+    csv_import,
     fx_rates,
     owner_snapshots,
     owners,
@@ -35,5 +36,6 @@ protected_router.include_router(templates.router)
 protected_router.include_router(owner_snapshots.router)
 protected_router.include_router(snapshot_groups.router)
 protected_router.include_router(fx_rates.router)
+protected_router.include_router(csv_import.router)
 router.include_router(auth.router)
 router.include_router(protected_router)
