@@ -14,3 +14,18 @@ Recommended writing order:
 8. `deployment.md`
 
 Create `architecture.md` after the product, data model, and API contract are stable.
+
+## V1 Implementation Trace
+
+Implementation follows `docs/superpowers/plans/2026-07-17-v1-implementation.md`.
+Use requirement IDs from specs when adding API tests, implementation tickets, or
+PR descriptions.
+
+Current verification gates:
+
+```bash
+uv run pytest backend/tests
+uv run ruff check backend
+cd frontend && npm run build
+docker compose --env-file deploy/.env.production.example -f deploy/compose.prod.yaml config
+```
