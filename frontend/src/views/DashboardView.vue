@@ -8,7 +8,14 @@ import {
 import * as echarts from "echarts/core";
 import type { ECharts } from "echarts/core";
 import { CanvasRenderer } from "echarts/renderers";
-import { onBeforeUnmount, onMounted, ref } from "vue";
+import { computed, onBeforeUnmount, onMounted, ref } from "vue";
+
+import {
+  fetchHouseholdOverview,
+  fetchLatestGroupDetail,
+  type HouseholdOverview,
+  type LatestGroupDetail,
+} from "../api/client";
 
 echarts.use([
   BarChart,
@@ -20,16 +27,44 @@ echarts.use([
   CanvasRenderer,
 ]);
 
+const props = defineProps<{
+  t: (key: string) => string;
+}>();
+
 const chartElement = ref<HTMLDivElement | null>(null);
+const overview = ref<HouseholdOverview | null>(null);
+const detail = ref<LatestGroupDetail | null>(null);
+const dashboardError = ref<string | null>(null);
 let chart: ECharts | null = null;
 
-const metrics = [
-  { label: "Net Worth", value: "$128,400", trend: "+4.2% MoM" },
-  { label: "Monthly Cash Flow", value: "$3,250", trend: "+$640" },
-  { label: "Investment Allocation", value: "68%", trend: "target 70%" },
-];
+const metrics = computed(() => [
+  {
+    label: props.t("dashboard.netWorth"),
+    value: overview.value?.current?.net_worth_official ?? "-",
+  },
+  {
+    label: props.t("dashboard.totalAssets"),
+    value: overview.value?.current?.total_assets_official ?? "-",
+  },
+  {
+    label: props.t("dashboard.totalLiabilities"),
+    value: overview.value?.current?.total_liabilities_official ?? "-",
+  },
+]);
 
-onMounted(() => {
+onMounted(async () => {
+  try {
+    const [overviewResponse, detailResponse] = await Promise.all([
+      fetchHouseholdOverview(),
+      fetchLatestGroupDetail(),
+    ]);
+    overview.value = overviewResponse;
+    detail.value = detailResponse;
+  } catch (error) {
+    dashboardError.value =
+      error instanceof Error ? error.message : "Dashboard unavailable";
+  }
+
   if (!chartElement.value) {
     return;
   }
@@ -37,13 +72,21 @@ onMounted(() => {
   chart = echarts.init(chartElement.value);
   chart.setOption({
     tooltip: { trigger: "axis" },
-    legend: { data: ["Income", "Expenses"] },
+    legend: { data: ["Assets", "Liabilities"] },
     grid: { left: 32, right: 16, top: 48, bottom: 28 },
-    xAxis: { type: "category", data: ["Jan", "Feb", "Mar", "Apr", "May", "Jun"] },
+    xAxis: { type: "category", data: ["Latest"] },
     yAxis: { type: "value" },
     series: [
-      { name: "Income", type: "line", data: [8200, 8400, 8300, 9100, 8800, 9300] },
-      { name: "Expenses", type: "bar", data: [5100, 5300, 4900, 5700, 5400, 6050] },
+      {
+        name: "Assets",
+        type: "bar",
+        data: [Number(overview.value?.current?.total_assets_official ?? 0)],
+      },
+      {
+        name: "Liabilities",
+        type: "bar",
+        data: [Number(overview.value?.current?.total_liabilities_official ?? 0)],
+      },
     ],
   });
 });
@@ -54,21 +97,46 @@ onBeforeUnmount(() => {
 </script>
 
 <template>
-  <section class="metrics-grid">
+  <p v-if="dashboardError" class="notice">{{ dashboardError }}</p>
+  <p v-else-if="overview?.current === null" class="notice">
+    {{ props.t("dashboard.empty") }}
+  </p>
+
+  <section id="household" class="metrics-grid">
     <article v-for="metric in metrics" :key="metric.label" class="metric-card">
       <span>{{ metric.label }}</span>
       <strong>{{ metric.value }}</strong>
-      <small>{{ metric.trend }}</small>
+      <small>{{ overview?.official_base_currency ?? "CNY" }}</small>
     </article>
   </section>
 
   <section class="panel">
     <div class="panel-header">
       <div>
-        <h2>Cash Flow Preview</h2>
-        <p>Placeholder data until import and account specs are finalized.</p>
+        <h2>{{ props.t("dashboard.latestDetail") }}</h2>
+        <p v-if="overview?.current">
+          {{ overview.current.reporting_at }}
+        </p>
       </div>
     </div>
     <div ref="chartElement" class="chart" />
+    <table v-if="detail?.members.length" class="detail-table">
+      <thead>
+        <tr>
+          <th>Owner</th>
+          <th>Assets</th>
+          <th>Liabilities</th>
+          <th>Net Worth</th>
+        </tr>
+      </thead>
+      <tbody>
+        <tr v-for="member in detail.members" :key="member.owner_id">
+          <td>{{ member.owner_name }}</td>
+          <td>{{ member.asset_total_official }}</td>
+          <td>{{ member.liability_total_official }}</td>
+          <td>{{ member.net_worth_official }}</td>
+        </tr>
+      </tbody>
+    </table>
   </section>
 </template>
