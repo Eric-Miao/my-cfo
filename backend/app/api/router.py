@@ -1,7 +1,7 @@
 from fastapi import APIRouter, Depends
 
 from backend.app.api.deps import require_admin
-from backend.app.api.routes import auth, categories, owners, tags
+from backend.app.api.routes import auth, categories, owners, tags, templates
 from backend.app.core.config import settings
 
 router = APIRouter(prefix="/api/v1")
@@ -22,5 +22,6 @@ def meta() -> dict[str, str]:
 protected_router.include_router(owners.router)
 protected_router.include_router(categories.router)
 protected_router.include_router(tags.router)
+protected_router.include_router(templates.router)
 router.include_router(auth.router)
 router.include_router(protected_router)
