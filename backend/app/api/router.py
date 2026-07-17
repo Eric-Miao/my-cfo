@@ -5,6 +5,7 @@ from backend.app.api.routes import (
     auth,
     categories,
     csv_import,
+    dashboard,
     fx_rates,
     owner_snapshots,
     owners,
@@ -37,5 +38,6 @@ protected_router.include_router(owner_snapshots.router)
 protected_router.include_router(snapshot_groups.router)
 protected_router.include_router(fx_rates.router)
 protected_router.include_router(csv_import.router)
+protected_router.include_router(dashboard.router)
 router.include_router(auth.router)
 router.include_router(protected_router)
