@@ -148,3 +148,40 @@ async def test_latest_group_detail_returns_frozen_members(async_client) -> None:
     assert detail["members"][0]["owner_name"] == "Owner A"
     assert detail["members"][0]["asset_total_official"] == "72.50000000"
     assert detail["members"][0]["liability_total_official"] == "20.00000000"
+
+
+@pytest.mark.anyio
+async def test_dashboard_trend_and_composition_endpoints(async_client) -> None:
+    await login_admin(async_client)
+    await create_finalized_group(async_client)
+
+    net_worth_response = await async_client.get("/api/v1/dashboard/net-worth-trend")
+    assets_liabilities_response = await async_client.get(
+        "/api/v1/dashboard/assets-liabilities-trend"
+    )
+    owner_response = await async_client.get("/api/v1/dashboard/owner-net-worth-trend")
+    composition_response = await async_client.get("/api/v1/dashboard/composition")
+
+    assert net_worth_response.status_code == 200
+    assert net_worth_response.json()["items"][0]["net_worth_official"] == "52.50000000"
+    assert assets_liabilities_response.status_code == 200
+    assert assets_liabilities_response.json()["items"][0]["assets_official"] == (
+        "72.50000000"
+    )
+    assert owner_response.status_code == 200
+    assert owner_response.json()["items"][0]["owner_name"] == "Owner A"
+    assert owner_response.json()["items"][0]["net_worth_official"] == "52.50000000"
+    assert composition_response.status_code == 200
+    composition = composition_response.json()
+    assert composition["currency_exposure"] == [
+        {
+            "currency": "CNY",
+            "amount_original": "20.00000000",
+            "amount_official": "20.00000000",
+        },
+        {
+            "currency": "USD",
+            "amount_original": "10.00000000",
+            "amount_official": "72.50000000",
+        },
+    ]

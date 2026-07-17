@@ -4,6 +4,7 @@ from sqlmodel import Session, select
 
 from backend.app.core.config import settings
 from backend.app.domain.dashboard import format_money
+from backend.app.models.category import SystemCategory
 from backend.app.models.fx import FxRate
 from backend.app.models.group import (
     SnapshotGroup,
@@ -59,6 +60,69 @@ def latest_group_detail(session: Session) -> dict:
     }
 
 
+def net_worth_trend(session: Session) -> dict:
+    return {
+        "items": [
+            {
+                "group_id": f"group_{group.id}",
+                "revision_id": f"rev_{revision.id}",
+                "reporting_at": group.reporting_at,
+                "net_worth_official": format_money(
+                    _revision_totals(session, revision)["net_worth"]
+                ),
+            }
+            for group, revision in _finalized_contexts(session)
+        ]
+    }
+
+
+def assets_liabilities_trend(session: Session) -> dict:
+    items = []
+    for group, revision in _finalized_contexts(session):
+        totals = _revision_totals(session, revision)
+        items.append(
+            {
+                "group_id": f"group_{group.id}",
+                "revision_id": f"rev_{revision.id}",
+                "reporting_at": group.reporting_at,
+                "assets_official": format_money(totals["assets"]),
+                "liabilities_official": format_money(totals["liabilities"]),
+            }
+        )
+    return {"items": items}
+
+
+def owner_net_worth_trend(session: Session) -> dict:
+    items = []
+    for group, revision in _finalized_contexts(session):
+        for member in _member_details(session, revision):
+            items.append(
+                {
+                    "group_id": f"group_{group.id}",
+                    "revision_id": f"rev_{revision.id}",
+                    "reporting_at": group.reporting_at,
+                    **member,
+                }
+            )
+    return {"items": items}
+
+
+def composition(session: Session) -> dict:
+    current = _latest_finalized_context(session)
+    if current is None:
+        return {
+            "system_categories": [],
+            "currency_exposure": [],
+            "owner_contribution": [],
+        }
+    _group, revision = current
+    return {
+        "system_categories": _system_category_composition(session, revision),
+        "currency_exposure": _currency_exposure(session, revision),
+        "owner_contribution": _member_details(session, revision),
+    }
+
+
 def _latest_finalized_context(
     session: Session,
 ) -> tuple[SnapshotGroup, SnapshotGroupRevision] | None:
@@ -76,6 +140,22 @@ def _latest_finalized_context(
     if group is None or group.active_revision_id != revision.id:
         return None
     return group, revision
+
+
+def _finalized_contexts(
+    session: Session,
+) -> list[tuple[SnapshotGroup, SnapshotGroupRevision]]:
+    contexts: list[tuple[SnapshotGroup, SnapshotGroupRevision]] = []
+    revisions = session.exec(
+        select(SnapshotGroupRevision)
+        .where(SnapshotGroupRevision.status == "finalized")
+        .order_by(SnapshotGroupRevision.finalized_at, SnapshotGroupRevision.id)
+    ).all()
+    for revision in revisions:
+        group = session.get(SnapshotGroup, revision.snapshot_group_id)
+        if group is not None and group.active_revision_id == revision.id:
+            contexts.append((group, revision))
+    return contexts
 
 
 def _revision_totals(
@@ -152,3 +232,55 @@ def _fx_rates(
     ):
         rates[rate.currency] = Decimal(rate.rate_to_base)
     return rates
+
+
+def _system_category_composition(
+    session: Session,
+    revision: SnapshotGroupRevision,
+) -> list[dict]:
+    rates = _fx_rates(session, revision)
+    totals: dict[int, Decimal] = {}
+    for member in _revision_members(session, revision):
+        for item in snapshot_items(session, member.owner_snapshot_id):
+            amount = Decimal(item.amount_original or "0")
+            totals[item.system_category_id] = totals.get(
+                item.system_category_id, Decimal("0")
+            ) + amount * rates.get(item.currency, Decimal("1"))
+    rows = []
+    for category_id, total in sorted(totals.items()):
+        category = session.get(SystemCategory, category_id)
+        rows.append(
+            {
+                "system_category_id": f"cat_{category_id}",
+                "system_category_code": category.code if category else None,
+                "system_category_name": category.name if category else None,
+                "amount_official": format_money(total),
+            }
+        )
+    return rows
+
+
+def _currency_exposure(
+    session: Session,
+    revision: SnapshotGroupRevision,
+) -> list[dict]:
+    rates = _fx_rates(session, revision)
+    original_totals: dict[str, Decimal] = {}
+    official_totals: dict[str, Decimal] = {}
+    for member in _revision_members(session, revision):
+        for item in snapshot_items(session, member.owner_snapshot_id):
+            amount = Decimal(item.amount_original or "0")
+            original_totals[item.currency] = original_totals.get(
+                item.currency, Decimal("0")
+            ) + amount
+            official_totals[item.currency] = official_totals.get(
+                item.currency, Decimal("0")
+            ) + amount * rates.get(item.currency, Decimal("1"))
+    return [
+        {
+            "currency": currency,
+            "amount_original": format_money(original_totals[currency]),
+            "amount_official": format_money(official_totals[currency]),
+        }
+        for currency in sorted(original_totals)
+    ]
