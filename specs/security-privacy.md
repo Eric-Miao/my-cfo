@@ -52,8 +52,10 @@ Required cookie attributes:
 - `HttpOnly=true`
 - `SameSite=Lax`
 - `Path=/`
-- `Secure=true` in production
+- `Secure=true` in public production
 - finite expiration, default 7 days
+
+For V1 LAN production without HTTPS, `Secure=false` is allowed only when `DEPLOYMENT_NETWORK=lan`. If public ingress or HTTPS is introduced later, `Secure=true` is required.
 
 ### SEC-2.5 Logout
 
