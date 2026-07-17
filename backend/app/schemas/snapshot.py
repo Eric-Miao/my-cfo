@@ -15,6 +15,10 @@ class SnapshotItemPatch(BaseModel):
     note: str | None = None
 
 
+class OwnerSnapshotReplacementCreate(BaseModel):
+    revision_note: str | None = None
+
+
 class SnapshotItemRead(BaseModel):
     id: str
     template_id: str

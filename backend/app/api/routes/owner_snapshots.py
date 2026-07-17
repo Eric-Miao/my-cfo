@@ -6,6 +6,7 @@ from backend.app.api.deps import SessionDep
 from backend.app.schemas.snapshot import (
     OwnerSnapshotCreate,
     OwnerSnapshotRead,
+    OwnerSnapshotReplacementCreate,
     SnapshotItemPatch,
 )
 from backend.app.services import snapshots
@@ -26,6 +27,11 @@ def create_owner_snapshot(
     session: SessionDep,
 ) -> OwnerSnapshotRead:
     return _read_snapshot(session, snapshots.create_owner_snapshot(session, payload))
+
+
+@router.get("/{snapshot_id}")
+def get_owner_snapshot(snapshot_id: str, session: SessionDep) -> OwnerSnapshotRead:
+    return _read_snapshot(session, snapshots.get_snapshot(session, snapshot_id))
 
 
 @router.patch("/{snapshot_id}/items/{item_id}")
@@ -49,3 +55,15 @@ def confirm_owner_snapshot(snapshot_id: str, session: SessionDep) -> OwnerSnapsh
 @router.post("/{snapshot_id}/cancel")
 def cancel_owner_snapshot(snapshot_id: str, session: SessionDep) -> OwnerSnapshotRead:
     return _read_snapshot(session, snapshots.cancel_snapshot(session, snapshot_id))
+
+
+@router.post("/{snapshot_id}/replacements", status_code=HTTPStatus.CREATED)
+def create_replacement_snapshot(
+    snapshot_id: str,
+    payload: OwnerSnapshotReplacementCreate,
+    session: SessionDep,
+) -> OwnerSnapshotRead:
+    return _read_snapshot(
+        session,
+        snapshots.create_replacement_snapshot(session, snapshot_id, payload),
+    )

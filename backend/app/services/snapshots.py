@@ -9,7 +9,11 @@ from backend.app.models.owner import Owner
 from backend.app.models.snapshot import OwnerSnapshot, SnapshotItem
 from backend.app.models.template import BalanceSheetItemTemplate
 from backend.app.schemas.ids import parse_public_id
-from backend.app.schemas.snapshot import OwnerSnapshotCreate, SnapshotItemPatch
+from backend.app.schemas.snapshot import (
+    OwnerSnapshotCreate,
+    OwnerSnapshotReplacementCreate,
+    SnapshotItemPatch,
+)
 
 
 def _get_owner(session: Session, owner_public_id: str) -> Owner:
@@ -19,7 +23,7 @@ def _get_owner(session: Session, owner_public_id: str) -> Owner:
     return owner
 
 
-def _get_snapshot(session: Session, snapshot_public_id: str) -> OwnerSnapshot:
+def get_snapshot(session: Session, snapshot_public_id: str) -> OwnerSnapshot:
     snapshot = session.get(OwnerSnapshot, parse_public_id("snap", snapshot_public_id))
     if snapshot is None:
         raise ApiError(404, "not_found", "Snapshot was not found.")
@@ -98,7 +102,7 @@ def update_snapshot_item(
     item_public_id: str,
     payload: SnapshotItemPatch,
 ) -> OwnerSnapshot:
-    snapshot = _get_snapshot(session, snapshot_public_id)
+    snapshot = get_snapshot(session, snapshot_public_id)
     if snapshot.status != "draft":
         raise ApiError(409, "conflict", "Only draft snapshots can be edited.")
 
@@ -118,7 +122,7 @@ def update_snapshot_item(
 
 
 def confirm_snapshot(session: Session, snapshot_public_id: str) -> OwnerSnapshot:
-    snapshot = _get_snapshot(session, snapshot_public_id)
+    snapshot = get_snapshot(session, snapshot_public_id)
     if snapshot.status != "draft":
         raise ApiError(409, "conflict", "Only draft snapshots can be confirmed.")
     items = snapshot_items(session, snapshot.id)
@@ -133,13 +137,21 @@ def confirm_snapshot(session: Session, snapshot_public_id: str) -> OwnerSnapshot
     snapshot.confirmed_at = datetime.now(UTC)
     snapshot.updated_at = datetime.now(UTC)
     session.add(snapshot)
+    if snapshot.replaces_snapshot_id is not None:
+        original = session.get(OwnerSnapshot, snapshot.replaces_snapshot_id)
+        if original is not None:
+            original.status = "superseded"
+            original.superseded_by_snapshot_id = snapshot.id
+            original.superseded_at = snapshot.confirmed_at
+            original.updated_at = snapshot.updated_at
+            session.add(original)
     session.commit()
     session.refresh(snapshot)
     return snapshot
 
 
 def cancel_snapshot(session: Session, snapshot_public_id: str) -> OwnerSnapshot:
-    snapshot = _get_snapshot(session, snapshot_public_id)
+    snapshot = get_snapshot(session, snapshot_public_id)
     if snapshot.status != "draft":
         raise ApiError(409, "conflict", "Only draft snapshots can be cancelled.")
     snapshot.status = "cancelled"
@@ -148,3 +160,47 @@ def cancel_snapshot(session: Session, snapshot_public_id: str) -> OwnerSnapshot:
     session.commit()
     session.refresh(snapshot)
     return snapshot
+
+
+def create_replacement_snapshot(
+    session: Session,
+    snapshot_public_id: str,
+    payload: OwnerSnapshotReplacementCreate,
+) -> OwnerSnapshot:
+    original = get_snapshot(session, snapshot_public_id)
+    if original.status != "confirmed":
+        raise ApiError(409, "conflict", "Only confirmed snapshots can be replaced.")
+
+    replacement = OwnerSnapshot(
+        owner_id=original.owner_id,
+        reporting_at=original.reporting_at,
+        status="draft",
+        source="manual",
+        label=original.label,
+        replaces_snapshot_id=original.id,
+        revision_note=payload.revision_note,
+    )
+    session.add(replacement)
+    session.commit()
+    session.refresh(replacement)
+
+    for item in snapshot_items(session, original.id):
+        session.add(
+            SnapshotItem(
+                owner_snapshot_id=replacement.id,
+                template_id=item.template_id,
+                item_type=item.item_type,
+                system_category_id=item.system_category_id,
+                system_category_code_snapshot=item.system_category_code_snapshot,
+                system_category_name_snapshot=item.system_category_name_snapshot,
+                account_name_snapshot=item.account_name_snapshot,
+                institution_name_snapshot=item.institution_name_snapshot,
+                currency=item.currency,
+                amount_original=item.amount_original,
+                note=item.note,
+                display_order=item.display_order,
+            )
+        )
+    session.commit()
+    session.refresh(replacement)
+    return replacement

@@ -217,3 +217,50 @@ async def test_cancel_draft_snapshot(async_client) -> None:
 
     assert response.status_code == 200
     assert response.json()["status"] == "cancelled"
+
+
+@pytest.mark.anyio
+async def test_replacement_snapshot_supersedes_original(async_client) -> None:
+    await login_admin(async_client)
+    owner_id, _template_id = await create_snapshot_template(async_client)
+    create_response = await async_client.post(
+        "/api/v1/owner-snapshots",
+        json={"owner_id": owner_id, "reporting_at": "2026-03-31T15:59:59Z"},
+    )
+    original = create_response.json()
+    item_id = original["items"][0]["id"]
+    await async_client.patch(
+        f"/api/v1/owner-snapshots/{original['id']}/items/{item_id}",
+        json={"amount_original": "100.00"},
+    )
+    confirm_response = await async_client.post(
+        f"/api/v1/owner-snapshots/{original['id']}/confirm"
+    )
+    assert confirm_response.status_code == 200
+
+    replacement_response = await async_client.post(
+        f"/api/v1/owner-snapshots/{original['id']}/replacements",
+        json={"revision_note": "corrected balance"},
+    )
+    assert replacement_response.status_code == 201
+    replacement = replacement_response.json()
+    replacement_item_id = replacement["items"][0]["id"]
+    assert replacement["status"] == "draft"
+    assert replacement["items"][0]["amount_original"] == "100.00"
+
+    await async_client.patch(
+        f"/api/v1/owner-snapshots/{replacement['id']}/items/{replacement_item_id}",
+        json={"amount_original": "101.00"},
+    )
+    replacement_confirm_response = await async_client.post(
+        f"/api/v1/owner-snapshots/{replacement['id']}/confirm"
+    )
+
+    assert replacement_confirm_response.status_code == 200
+    assert replacement_confirm_response.json()["status"] == "confirmed"
+
+    original_detail_response = await async_client.get(
+        f"/api/v1/owner-snapshots/{original['id']}"
+    )
+    assert original_detail_response.status_code == 200
+    assert original_detail_response.json()["status"] == "superseded"
