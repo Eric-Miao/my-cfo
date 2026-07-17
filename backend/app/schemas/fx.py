@@ -1,4 +1,4 @@
-from pydantic import BaseModel
+from pydantic import BaseModel, Field
 
 from backend.app.models.fx import FxRate, FxRateSet
 from backend.app.schemas.ids import public_id
@@ -11,7 +11,12 @@ class ManualFxRateInput(BaseModel):
 
 class FxFinalizeRequest(BaseModel):
     mode: str
-    manual_rates: list[ManualFxRateInput] = []
+    manual_rates: list[ManualFxRateInput] = Field(default_factory=list)
+
+
+class FxQuoteRequest(BaseModel):
+    base_currency: str
+    currencies: list[str]
 
 
 class FxRateRead(BaseModel):

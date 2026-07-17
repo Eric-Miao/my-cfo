@@ -1,3 +1,5 @@
+from decimal import Decimal
+
 import pytest
 
 from backend.app.core.config import settings
@@ -211,3 +213,99 @@ async def test_group_member_snapshot_must_be_confirmed(async_client) -> None:
 
     assert response.status_code == 422
     assert response.json()["error"]["code"] == "validation_error"
+
+
+@pytest.mark.anyio
+async def test_finalize_group_with_api_fx_provider(async_client, monkeypatch) -> None:
+    await login_admin(async_client)
+    owner_a, snapshot_a = await create_confirmed_snapshot(
+        async_client,
+        owner_name="Owner A",
+        currency="CNY",
+        amount="100.00",
+    )
+    owner_b, snapshot_b = await create_confirmed_snapshot(
+        async_client,
+        owner_name="Owner B",
+        currency="USD",
+        amount="10.00",
+    )
+
+    class FakeFxProvider:
+        def quote(self, base_currency, currencies, rate_timestamp):
+            return {"USD": Decimal("7.25000000")}
+
+    monkeypatch.setattr(
+        "backend.app.services.groups.get_fx_provider",
+        lambda: FakeFxProvider(),
+    )
+
+    create_response = await async_client.post(
+        "/api/v1/snapshot-groups",
+        json={
+            "label": "March Household",
+            "members": [
+                {"owner_id": owner_a, "owner_snapshot_id": snapshot_a},
+                {"owner_id": owner_b, "owner_snapshot_id": snapshot_b},
+            ],
+        },
+    )
+    group = create_response.json()
+
+    finalize_response = await async_client.post(
+        f"/api/v1/snapshot-groups/{group['id']}/finalize",
+        json={"fx_rates": {"mode": "api"}},
+    )
+
+    assert finalize_response.status_code == 200
+    rate_set_id = finalize_response.json()["active_revision"]["fx_rate_set_id"]
+    rate_set_response = await async_client.get(f"/api/v1/fx-rate-sets/{rate_set_id}")
+    assert rate_set_response.json()["rate_source"] == "api"
+    assert rate_set_response.json()["rates"] == [
+        {"currency": "USD", "rate_to_base": "7.25000000"}
+    ]
+
+
+@pytest.mark.anyio
+async def test_reopen_and_cancel_draft_preserves_finalized_revision(
+    async_client,
+) -> None:
+    await login_admin(async_client)
+    owner_a, snapshot_a = await create_confirmed_snapshot(
+        async_client,
+        owner_name="Owner A",
+        currency="CNY",
+        amount="100.00",
+    )
+    create_response = await async_client.post(
+        "/api/v1/snapshot-groups",
+        json={
+            "label": "March Household",
+            "members": [{"owner_id": owner_a, "owner_snapshot_id": snapshot_a}],
+        },
+    )
+    group = create_response.json()
+    finalize_response = await async_client.post(
+        f"/api/v1/snapshot-groups/{group['id']}/finalize",
+        json={"fx_rates": {"mode": "manual", "manual_rates": []}},
+    )
+    finalized_revision_id = finalize_response.json()["active_revision"]["id"]
+
+    reopen_response = await async_client.post(
+        f"/api/v1/snapshot-groups/{group['id']}/reopen",
+        json={"note": "prepare correction"},
+    )
+
+    assert reopen_response.status_code == 200
+    reopened = reopen_response.json()
+    assert reopened["active_revision"]["id"] == finalized_revision_id
+    assert reopened["draft_revision"]["revision_number"] == 2
+    assert reopened["draft_revision"]["status"] == "draft"
+
+    cancel_response = await async_client.post(
+        f"/api/v1/snapshot-groups/{group['id']}/cancel-draft"
+    )
+
+    assert cancel_response.status_code == 200
+    assert cancel_response.json()["active_revision"]["id"] == finalized_revision_id
+    assert cancel_response.json()["draft_revision"] is None

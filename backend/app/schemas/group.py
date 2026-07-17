@@ -23,6 +23,10 @@ class SnapshotGroupFinalizeRequest(BaseModel):
     fx_rates: "FxFinalizeRequest"
 
 
+class SnapshotGroupReopenRequest(BaseModel):
+    note: str | None = None
+
+
 class SnapshotGroupMemberRead(BaseModel):
     owner_id: str
     owner_snapshot_id: str
@@ -78,18 +82,21 @@ class SnapshotGroupRead(BaseModel):
     reporting_at: str
     label: str | None
     active_revision: SnapshotGroupRevisionRead | None
+    draft_revision: SnapshotGroupRevisionRead | None = None
 
     @classmethod
     def from_model(
         cls,
         group: SnapshotGroup,
         active_revision: SnapshotGroupRevisionRead | None,
+        draft_revision: SnapshotGroupRevisionRead | None = None,
     ) -> "SnapshotGroupRead":
         return cls(
             id=public_id("group", group.id),
             reporting_at=group.reporting_at,
             label=group.label,
             active_revision=active_revision,
+            draft_revision=draft_revision,
         )
 
 
