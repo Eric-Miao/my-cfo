@@ -1,0 +1,42 @@
+name: Deploy Production
+
+on:
+  push:
+    branches: [main]
+
+permissions:
+  contents: read
+  packages: write
+
+jobs:
+  build-and-push:
+    runs-on: ubuntu-latest
+    outputs:
+      image_tag: ${{ github.sha }}
+    steps:
+      - uses: actions/checkout@v5
+      - uses: docker/login-action@v4
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+      - run: docker build -f backend/Dockerfile -t ghcr.io/${{ github.repository }}/backend:${{ github.sha }} .
+      - run: docker build -f frontend/Dockerfile -t ghcr.io/${{ github.repository }}/frontend:${{ github.sha }} .
+      - run: docker push ghcr.io/${{ github.repository }}/backend:${{ github.sha }}
+      - run: docker push ghcr.io/${{ github.repository }}/frontend:${{ github.sha }}
+
+  deploy:
+    needs: build-and-push
+    runs-on: [self-hosted, macmini, production]
+    environment: production
+    steps:
+      - uses: actions/checkout@v5
+      - run: docker compose --env-file "$MY_CFO_ENV_FILE" -f deploy/compose.prod.yaml down
+        env:
+          MY_CFO_ENV_FILE: /opt/my-cfo/prd/env/production.env
+      - run: deploy/scripts/deploy_release_bundle.sh
+        env:
+          IMAGE_TAG: ${{ github.sha }}
+          MY_CFO_ENV_FILE: /opt/my-cfo/prd/env/production.env
+          MY_CFO_BACKUP_DIR: /opt/my-cfo/prd/backups
+          BACKUP_KIND: predeploy
