@@ -14,6 +14,12 @@ wheels/
 .env.*
 !.env.example
 
+# Local data and backups
+*.db
+*.sqlite
+*.sqlite3
+backups/
+
 # Frontend
 frontend/node_modules/
 frontend/dist/
