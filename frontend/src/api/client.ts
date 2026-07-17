@@ -66,6 +66,16 @@ export interface LatestGroupDetail {
   }>;
 }
 
+export interface TrendResponse {
+  items: Array<Record<string, string>>;
+}
+
+export interface CompositionResponse {
+  system_categories: Array<Record<string, string | null>>;
+  currency_exposure: Array<Record<string, string>>;
+  owner_contribution: Array<Record<string, string | null>>;
+}
+
 export function login(password: string): Promise<AuthState> {
   return request<AuthState>("/api/v1/auth/login", {
     method: "POST",
@@ -87,4 +97,20 @@ export function fetchHouseholdOverview(): Promise<HouseholdOverview> {
 
 export function fetchLatestGroupDetail(): Promise<LatestGroupDetail> {
   return request<LatestGroupDetail>("/api/v1/dashboard/latest-group-detail");
+}
+
+export function fetchNetWorthTrend(): Promise<TrendResponse> {
+  return request<TrendResponse>("/api/v1/dashboard/net-worth-trend");
+}
+
+export function fetchAssetsLiabilitiesTrend(): Promise<TrendResponse> {
+  return request<TrendResponse>("/api/v1/dashboard/assets-liabilities-trend");
+}
+
+export function fetchOwnerNetWorthTrend(): Promise<TrendResponse> {
+  return request<TrendResponse>("/api/v1/dashboard/owner-net-worth-trend");
+}
+
+export function fetchComposition(): Promise<CompositionResponse> {
+  return request<CompositionResponse>("/api/v1/dashboard/composition");
 }

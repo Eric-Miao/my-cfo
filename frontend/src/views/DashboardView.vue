@@ -16,6 +16,11 @@ import {
   type HouseholdOverview,
   type LatestGroupDetail,
 } from "../api/client";
+import ChartCard from "../components/ChartCard.vue";
+import FilterBar from "../components/FilterBar.vue";
+import LatestGroupTable from "../components/LatestGroupTable.vue";
+import MetricCard from "../components/MetricCard.vue";
+import OwnerDashboardView from "./OwnerDashboardView.vue";
 
 echarts.use([
   BarChart,
@@ -103,40 +108,27 @@ onBeforeUnmount(() => {
   </p>
 
   <section id="household" class="metrics-grid">
-    <article v-for="metric in metrics" :key="metric.label" class="metric-card">
-      <span>{{ metric.label }}</span>
-      <strong>{{ metric.value }}</strong>
-      <small>{{ overview?.official_base_currency ?? "CNY" }}</small>
-    </article>
+    <MetricCard
+      v-for="metric in metrics"
+      :key="metric.label"
+      :label="metric.label"
+      :value="metric.value"
+      :unit="overview?.official_base_currency ?? 'CNY'"
+    />
   </section>
 
-  <section class="panel">
-    <div class="panel-header">
-      <div>
-        <h2>{{ props.t("dashboard.latestDetail") }}</h2>
-        <p v-if="overview?.current">
-          {{ overview.current.reporting_at }}
-        </p>
-      </div>
-    </div>
+  <FilterBar
+    :display-currency="overview?.display_currency ?? 'CNY'"
+    :estimate="overview?.display_values_are_estimates ?? false"
+  />
+
+  <ChartCard
+    :title="props.t('dashboard.latestDetail')"
+    :subtitle="overview?.current?.reporting_at"
+  >
     <div ref="chartElement" class="chart" />
-    <table v-if="detail?.members.length" class="detail-table">
-      <thead>
-        <tr>
-          <th>Owner</th>
-          <th>Assets</th>
-          <th>Liabilities</th>
-          <th>Net Worth</th>
-        </tr>
-      </thead>
-      <tbody>
-        <tr v-for="member in detail.members" :key="member.owner_id">
-          <td>{{ member.owner_name }}</td>
-          <td>{{ member.asset_total_official }}</td>
-          <td>{{ member.liability_total_official }}</td>
-          <td>{{ member.net_worth_official }}</td>
-        </tr>
-      </tbody>
-    </table>
-  </section>
+    <LatestGroupTable :detail="detail" />
+  </ChartCard>
+
+  <OwnerDashboardView title="Owner Dashboard" />
 </template>

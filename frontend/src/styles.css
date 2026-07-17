@@ -167,6 +167,24 @@ h1 {
   width: 100%;
 }
 
+.filter-bar {
+  align-items: center;
+  display: flex;
+  gap: 10px;
+  justify-content: flex-end;
+  margin-bottom: 16px;
+}
+
+.badge {
+  background: color-mix(in srgb, var(--accent), transparent 82%);
+  border: 1px solid var(--accent);
+  border-radius: 999px;
+  color: var(--accent);
+  font-size: 0.78rem;
+  font-weight: 700;
+  padding: 4px 8px;
+}
+
 .detail-table th,
 .detail-table td {
   border-bottom: 1px solid var(--border);
