@@ -1,6 +1,8 @@
 import csv
 import io
 
+from backend.app.api.errors import ApiError
+
 TEMPLATE_EXPORT_COLUMNS = [
     "template_id",
     "owner_id",
@@ -36,3 +38,15 @@ def render_template_csv(rows: list[dict[str, str]]) -> str:
     for row in rows:
         writer.writerow(row)
     return output.getvalue()
+
+
+def parse_template_csv(csv_text: str) -> list[dict[str, str]]:
+    reader = csv.DictReader(io.StringIO(csv_text))
+    if reader.fieldnames != TEMPLATE_EXPORT_COLUMNS:
+        raise ApiError(
+            422,
+            "validation_error",
+            "CSV columns must match the exported template schema.",
+            [{"field": "csv_text", "reason": "Invalid column order."}],
+        )
+    return list(reader)
